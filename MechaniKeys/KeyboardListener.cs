@@ -26,8 +26,10 @@ namespace MechaniKeys
             // We have to store the LowLevelKeyboardProc, so that it is not garbage collected runtime
             hookedLowLevelKeyboardProc = (InterceptKeys.LowLevelKeyboardProc)LowLevelKeyboardProc;
 
+            libId = InterceptKeys.LoadLibrary("User32");
+
             // Set the hook
-            hookId = InterceptKeys.SetHook(hookedLowLevelKeyboardProc);
+            hookId = InterceptKeys.SetHook(hookedLowLevelKeyboardProc, libId);
 
             // Assign the asynchronous callback event
             hookedKeyboardCallbackAsync = new KeyboardCallbackAsync(KeyboardListener_KeyboardCallbackAsync);
@@ -109,6 +111,8 @@ namespace MechaniKeys
         /// </summary>
         private InterceptKeys.LowLevelKeyboardProc hookedLowLevelKeyboardProc;
 
+        private IntPtr libId;
+
         /// <summary>
         /// HookCallbackAsync procedure that calls accordingly the KeyDown or KeyUp events.
         /// </summary>
@@ -155,6 +159,7 @@ namespace MechaniKeys
         public void Dispose()
         {
             InterceptKeys.UnhookWindowsHookEx(hookId);
+            InterceptKeys.FreeLibrary(libId);
         }
 
         #endregion
@@ -252,14 +257,18 @@ namespace MechaniKeys
             WM_SYSKEYDOWN = 260
         }
 
-        public static IntPtr SetHook(LowLevelKeyboardProc proc)
+        public static IntPtr SetHook(LowLevelKeyboardProc proc, IntPtr module)
         {
             using (Process curProcess = Process.GetCurrentProcess())
             using (ProcessModule curModule = curProcess.MainModule)
             {
-                return SetWindowsHookEx(WH_KEYBOARD_LL, proc, GetModuleHandle(curModule.ModuleName), 0);
+                return SetWindowsHookEx(WH_KEYBOARD_LL, proc, module/*GetModuleHandle(curModule.ModuleName)*/, 0);
             }
         }
+        [DllImport("kernel32.dll")]
+        public static extern IntPtr LoadLibrary(string lpFileName);
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto)]
+        public static extern bool FreeLibrary(IntPtr hModule);
 
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         public static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
